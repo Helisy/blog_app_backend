@@ -31,6 +31,7 @@ router.get('/', validateToken, checkSchema(baseFilterValidation), async (req, re
         date_to: req.query.date_to,
         order: req.query.order,
         limit: req.query.limit,
+        search: req.query.search,
     };
 
     removeUndefinedKeys(data_query)
@@ -38,7 +39,14 @@ router.get('/', validateToken, checkSchema(baseFilterValidation), async (req, re
     let data = [];
 
     const showDeleted = req.user.role === "admin" ? "" : "deleted_at is null";
-    let sqlFilter = mySqlFilter(data_query, customSqlFilter=showDeleted);
+    let sqlFilter = mySqlFilter(data_query, customSqlFilter=showDeleted,
+        customSqlValidator = {
+            search: {
+                customKey: `MATCH (title, content)`,
+                customValue: `AGAINST ('#value#' IN NATURAL LANGUAGE MODE)`,
+            },
+        }
+    );
     try {
         let [rows_1] = await db.execute(
         `

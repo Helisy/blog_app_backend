@@ -34,6 +34,9 @@ select * from posts;
 insert into posts(user_id, title, content)
 values(?, ?, ?);
 
+create fulltext index posts_search on posts(title, content);
+SELECT * FROM posts WHERE MATCH (title, content) AGAINST ('abri lata de milho' IN NATURAL LANGUAGE MODE) limit 100;
+
 create table comments(
 id bigint not null auto_increment,
 
