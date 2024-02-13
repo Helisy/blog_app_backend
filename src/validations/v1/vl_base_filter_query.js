@@ -50,16 +50,4 @@ module.exports = {
             errorMessage: "Field 'limit' must be an interger or 'none'.",
         },
     },
-    search: {
-        in: ["query"],
-        optional: {
-            options: {
-             nullable: true,
-            }
-        },
-        isLength: {
-            errorMessage: "The field 'isLength' must be between 6 and 255 characters.",
-            options:{ min: 6, max: 255 }
-        },
-    },
 }
