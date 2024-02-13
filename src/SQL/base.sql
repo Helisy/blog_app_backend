@@ -52,3 +52,20 @@ deleted_at DATETIME,
 primary key(id));
 
 select * from comments;
+
+create table likes(
+id bigint not null auto_increment,
+
+user_id int not null,
+father_id int not null,
+type varchar(15) not null,
+
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+deleted_at DATETIME,
+primary key(id));
+
+select * from likes;
+
+select id from likes where father_id = 1 and type = "post";
+
