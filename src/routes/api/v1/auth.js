@@ -66,6 +66,7 @@ router.post('/login', checkSchema(postAuthLoginValidaiton), async (req, res) => 
                 last_name: user[0].last_name,
                 user_id: user[0].id,
                 email: user[0].email,
+                role: user[0].role,
                 is_verified: user[0].is_verified,
             }
         );

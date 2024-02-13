@@ -10,4 +10,16 @@ function apiServerError(req, res, error){
     );
 }
 
-module.exports = { apiServerError };
+function apiClientError(req, res, error, message, http_status){
+    res.status(http_status).json(
+        {
+            method: req.method,
+            error: true,
+            code: http_status,
+            message: message,
+            data: !error ? [] : error,
+        }
+    );
+}
+
+module.exports = { apiServerError, apiClientError };

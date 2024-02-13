@@ -18,5 +18,8 @@ router.get('/', (req, res) => {
 const authRouter = require('./auth');
 router.use("/auth", authRouter);
 
+const postsRouter = require('./posts');
+router.use("/posts", postsRouter);
+
 
 module.exports = router;
