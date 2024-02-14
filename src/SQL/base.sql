@@ -19,11 +19,13 @@ select * from users;
 create table posts(
 id bigint not null auto_increment,
 
+original_post_id int default null,
 user_id int not null,
 title varchar(255) not null,
 content text not null,
 likes int default 0 not null,
 comments int default 0 not null,
+share int default 0 not null,
 
 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -68,4 +70,15 @@ primary key(id));
 select * from likes;
 
 select id from likes where father_id = 1 and type = "post";
+
+create table followers(
+id bigint not null auto_increment,
+
+user_id int not null,
+followed_user_id int not null,
+
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+deleted_at DATETIME,
+primary key(id));
 

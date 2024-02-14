@@ -42,7 +42,7 @@ router.get('/', validateToken, checkSchema({...baseFilterValidation, ...getPosts
 
     let data = [];
 
-    const showDeleted = req.user.role === "admin" ? "" : "deleted_at is null";
+    const showDeleted = req.user.role === "admin" ? "" : "posts.deleted_at is null";
     let sqlFilter = mySqlFilter(data_query, customSqlFilter=showDeleted,
         customSqlValidator = {
             search: {
@@ -55,9 +55,13 @@ router.get('/', validateToken, checkSchema({...baseFilterValidation, ...getPosts
         let [rows_1] = await db.execute(
         `
         SELECT
-            *
+            posts.*,
+            users.first_name,
+            users.last_name
         FROM
             posts
+        JOIN 
+            users on users.id = posts.user_id
             ${sqlFilter}
         `);
 
@@ -74,8 +78,19 @@ router.get('/', validateToken, checkSchema({...baseFilterValidation, ...getPosts
                 deleted_at is null;`, [row.id, req.user.user_id]);
 
 
-            const [original_post] = await db.execute(`select * from posts where id = ?`, [row.original_post_id]);
-
+            const [original_post] = await db.execute(
+                `select 
+                    posts.*,
+                    users.first_name,
+                    users.last_name 
+                from 
+                    posts 
+                join 
+                    users on users.id = posts.user_id
+                where 
+                    users.id = ?
+                    ${showDeleted == "" ? showDeleted : "and " + showDeleted}
+                `, [row.original_post_id]);
 
             data.push(
                 {
@@ -115,15 +130,21 @@ router.get('/:id', validateToken, param('id').isInt(), async (req, res) => {
 
     let data = {};
 
+    const showDeleted = req.user.role === "admin" ? "" : "and posts.deleted_at is null";
     try {
         let [rows_1] = await db.execute(
         `
         SELECT
-            *
+            posts.*,
+            users.first_name,
+            users.last_name
         FROM
             posts
+        JOIN 
+            users on users.id = posts.user_id
         where 
-            id = ?
+            posts.id = ?
+            ${showDeleted}
         `, [id]);
 
         let [like] = await db.execute(`
@@ -135,7 +156,19 @@ router.get('/:id', validateToken, param('id').isInt(), async (req, res) => {
             type = "post" and
             deleted_at is null;`, [rows_1[0].id, req.user.user_id]);
         
-            const [original_post] = await db.execute(`select * from posts where id = ?`, [rows_1[0].original_post_id]);
+            const [original_post] = await db.execute(
+                `select 
+                    posts.*,
+                    users.first_name,
+                    users.last_name 
+                from 
+                    posts 
+                join 
+                    users on users.id = posts.user_id
+                where 
+                    users.id = ?
+                    ${showDeleted}
+                `, [rows_1[0].original_post_id]);
 
 
             data =
@@ -364,16 +397,20 @@ router.get('/:id/comments', validateToken, param('id').isInt(), checkSchema(base
 
     let data = [];
 
-    const showDeleted = req.user.role === "admin" ? `post_id = ${id}` : `deleted_at is null and post_id = ${id}`;
+    const showDeleted = req.user.role === "admin" ? `post_id = ${id}` : `comments.deleted_at is null and post_id = ${id}`;
     let sqlFilter = mySqlFilter(data_query, customSqlFilter=showDeleted);
 
     try {
         let [rows_1] = await db.execute(
         `
         SELECT
-            *
+            comments.*,
+            users.first_name,
+            users.last_name 
         FROM
             comments
+        JOIN 
+            users on users.id = comments.user_id
             ${sqlFilter}
         `);
         
@@ -673,7 +710,7 @@ router.post('/comments/:id/likes', validateToken, param('id').isInt(), async (re
 
     try {
         await db.execute(sql, [req.user.user_id, id, "comment"]);
-        await db.execute(`update posts set likes = likes + 1 where id = ?`, [id]);
+        await db.execute(`update comments set likes = likes + 1 where id = ?`, [id]);
     } catch (error) {
         return apiServerError(req, res);
     } 

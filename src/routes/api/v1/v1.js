@@ -21,5 +21,7 @@ router.use("/auth", authRouter);
 const postsRouter = require('./posts');
 router.use("/posts", postsRouter);
 
+const usersRouter = require('./users');
+router.use("/users", usersRouter);
 
 module.exports = router;
