@@ -8,6 +8,9 @@ password varchar(255) not null,
 role varchar(50) not null DEFAULT 'basic',
 is_verified boolean DEFAULT false,
 
+followers int default 0 not null,
+following int default 0 not null,
+
 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 deleted_at DATETIME,
@@ -81,4 +84,9 @@ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 deleted_at DATETIME,
 primary key(id));
+
+select * from followers where user_id = ? and followed_user_id = ?;
+
+select * from followers where followed_user_id = 1; #followers
+select * from followers where user_id = ?; #following
 
