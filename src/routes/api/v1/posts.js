@@ -57,7 +57,21 @@ router.get('/', validateToken, checkSchema({...baseFilterValidation, ...getPosts
             posts
             ${sqlFilter}
         `);
-        data = rows_1;
+        
+        for (let i = 0; i < rows_1.length; i++) {
+            const row = rows_1[i];
+
+            let [like] = await db.execute(`
+            select 
+                id from likes 
+            where 
+                father_id = ? and
+                user_id = ? and
+                type = "post" and
+                deleted_at is null;`, [row.id, req.user.user_id]);
+
+            data.push({isLiked: like.length === 0 ? false : true, ...row});
+        }
     } catch (error) {
         return apiServerError(req, res);
     }
@@ -87,7 +101,7 @@ router.get('/:id', validateToken, param('id').isInt(), async (req, res) => {
 
     const id = req.params.id;
 
-    let data = [];
+    let data = {};
 
     try {
         let [rows_1] = await db.execute(
@@ -99,7 +113,18 @@ router.get('/:id', validateToken, param('id').isInt(), async (req, res) => {
         where 
             id = ?
         `, [id]);
-        data = rows_1;
+
+        let [like] = await db.execute(`
+        select 
+            id from likes 
+        where 
+            father_id = ? and
+            user_id = ? and
+            type = "post" and
+            deleted_at is null;`, [rows_1[0].id, req.user.user_id]);
+        
+        data = {isLiked: like.length === 0 ? false : true, ...rows_1[0]};
+
     } catch (error) {
         return apiServerError(req, res);
     }
@@ -315,7 +340,22 @@ router.get('/:id/comments', validateToken, param('id').isInt(), checkSchema(base
             comments
             ${sqlFilter}
         `);
-        data = rows_1;
+        
+        for (let i = 0; i < rows_1.length; i++) {
+            const row = rows_1[i];
+
+            let [like] = await db.execute(`
+            select 
+                id from likes 
+            where 
+                father_id = ? and
+                user_id = ? and
+                type = "comment" and
+                deleted_at is null;`, [row.id, req.user.user_id]);
+            
+
+            data.push({isLiked: like.length === 0 ? false : true, ...row});
+        }
     } catch (error) {
         return apiServerError(req, res);
     }
@@ -467,7 +507,7 @@ router.post('/:id/likes', validateToken, param('id').isInt(), async (req, res) =
 
     let current_like;
     try {
-        const [likes_query] = await db.execute(`select id from likes where father_id = ? and type = "post" and deleted_at is null;`, [id]);
+        const [likes_query] = await db.execute(`select id from likes where father_id = ? and user_id = ? and type = "post" and deleted_at is null;`, [id, req.user.user_id]);
         current_like = likes_query;
     } catch (error) {
         return apiServerError(req, res);
@@ -506,9 +546,8 @@ router.delete('/:id/likes', validateToken, param('id').isInt(), async (req, res)
 
     let user_id;
     try {
-        let [user_id_query] = await db.execute(`select user_id from likes where father_id = ? and deleted_at is null;`, [id]);
+        let [user_id_query] = await db.execute(`select user_id from posts where id = ?;`, [id]);
         user_id = user_id_query[0]?.user_id;
-        
     } catch (error) {
         return apiServerError(req, res);
     }
@@ -517,13 +556,9 @@ router.delete('/:id/likes', validateToken, param('id').isInt(), async (req, res)
         return apiClientError(req, res, null, "Resource not found", 404);
     }
 
-    if(user_id !== req.user.user_id){
-        return apiClientError(req, res, null, "Unauthorized", 401);
-    }
-
     let current_like;
     try {
-        const [likes_query] = await db.execute(`select id from likes where father_id = ? and type = "post" and deleted_at is null;`, [id]);
+        const [likes_query] = await db.execute(`select id from likes where father_id = ? and user_id = ? and type = "post" and deleted_at is null;`, [id, req.user.user_id]);
         current_like = likes_query;
     } catch (error) {
         return apiServerError(req, res);
@@ -536,9 +571,9 @@ router.delete('/:id/likes', validateToken, param('id').isInt(), async (req, res)
     const newDate = new Date();
     newDate.setHours(newDate.getHours() - 3);
 
-    sql = `update likes set deleted_at = STR_TO_DATE(?, '%Y-%m-%dT%H:%i:%s.%fZ') where deleted_at is null;`
+    sql = `update likes set deleted_at = STR_TO_DATE(?, '%Y-%m-%dT%H:%i:%s.%fZ') where user_id = ? and deleted_at is null;`
     try {
-        await db.execute(sql, [newDate.toISOString()]);
+        await db.execute(sql, [newDate.toISOString(), req.user.user_id]);
 
         await db.execute(`update posts set likes = likes - 1 where id = ?`, [id]);
     } catch (error) {
@@ -572,7 +607,7 @@ router.post('/comments/:id/likes', validateToken, param('id').isInt(), async (re
 
     let user_id;
     try {
-        let [user_id_query] = await db.execute(`select user_id from comments where id = ? and deleted_at is null;`, [id]);
+        let [user_id_query] = await db.execute(`select user_id from comments where id = ?;`, [id]);
         user_id = user_id_query[0]?.user_id;
     } catch (error) {
         return apiServerError(req, res);
@@ -584,14 +619,14 @@ router.post('/comments/:id/likes', validateToken, param('id').isInt(), async (re
 
     let current_like;
     try {
-        const [likes_query] = await db.execute(`select id from likes where father_id = ? and type = "comment" and deleted_at is null;`, [id]);
+        const [likes_query] = await db.execute(`select id from likes where father_id = ? and user_id = ? and type = "comment" and deleted_at is null;`, [id, req.user.user_id]);
         current_like = likes_query;
     } catch (error) {
         return apiServerError(req, res);
     }
 
     if(current_like.length > 0){
-        return apiClientError(req, res, null, "Post already liked by the user", 422);
+        return apiClientError(req, res, null, "Comments already liked by the user", 422);
     }
 
     let sql = `
@@ -602,7 +637,7 @@ router.post('/comments/:id/likes', validateToken, param('id').isInt(), async (re
 
     try {
         await db.execute(sql, [req.user.user_id, id, "comment"]);
-        await db.execute(`update comments set likes = likes + 1 where id = ?`, [id]);
+        await db.execute(`update posts set likes = likes + 1 where id = ?`, [id]);
     } catch (error) {
         return apiServerError(req, res);
     } 
@@ -623,9 +658,8 @@ router.delete('/comments/:id/likes', validateToken, param('id').isInt(), async (
 
     let user_id;
     try {
-        let [user_id_query] = await db.execute(`select user_id from likes where father_id = ? and deleted_at is null;`, [id]);
+        let [user_id_query] = await db.execute(`select user_id from comments where id = ?;`, [id]);
         user_id = user_id_query[0]?.user_id;
-        
     } catch (error) {
         return apiServerError(req, res);
     }
@@ -634,28 +668,24 @@ router.delete('/comments/:id/likes', validateToken, param('id').isInt(), async (
         return apiClientError(req, res, null, "Resource not found", 404);
     }
 
-    if(user_id !== req.user.user_id){
-        return apiClientError(req, res, null, "Unauthorized", 401);
-    }
-
     let current_like;
     try {
-        const [likes_query] = await db.execute(`select id from likes where father_id = ? and type = "comment" and deleted_at is null;`, [id]);
+        const [likes_query] = await db.execute(`select id from likes where father_id = ? and user_id = ? and type = "comment" and deleted_at is null;`, [id, req.user.user_id]);
         current_like = likes_query;
     } catch (error) {
         return apiServerError(req, res);
     }
     
     if(current_like.length < 1){
-        return apiClientError(req, res, null, "Post have no likes to remove", 422);
+        return apiClientError(req, res, null, "Comments have no likes to remove", 422);
     }
 
     const newDate = new Date();
     newDate.setHours(newDate.getHours() - 3);
 
-    sql = `update likes set deleted_at = STR_TO_DATE(?, '%Y-%m-%dT%H:%i:%s.%fZ') where deleted_at is null;`
+    sql = `update likes set deleted_at = STR_TO_DATE(?, '%Y-%m-%dT%H:%i:%s.%fZ') where user_id = ? and deleted_at is null;`
     try {
-        await db.execute(sql, [newDate.toISOString()]);
+        await db.execute(sql, [newDate.toISOString(), req.user.user_id]);
 
         await db.execute(`update comments set likes = likes - 1 where id = ?`, [id]);
     } catch (error) {
