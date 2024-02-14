@@ -7,7 +7,7 @@ module.exports = {
         },
         matches: {
             options: {
-                source: /^[a-zA-ZÀ-ÖØ-öø-ÿ]+$/
+                source: /^[A-Za-záàâãéèêíïóôõöúçñÁÀÂÃÉÈÍÏÓÔÕÖÚÇÑ ]+$/
             },
             errorMessage: 'The field first_name not accepts numbers and special characters.',
         }
@@ -19,7 +19,7 @@ module.exports = {
         },
         matches: {
             options: {
-                source: /^[a-zA-ZÀ-ÖØ-öø-ÿ]+$/
+                source: /^[A-Za-záàâãéèêíïóôõöúçñÁÀÂÃÉÈÍÏÓÔÕÖÚÇÑ ]+$/
             },
             errorMessage: 'The field last_name not accepts numbers and special characters.',
         }

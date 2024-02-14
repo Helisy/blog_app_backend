@@ -12,6 +12,8 @@ const { validateToken } = require("../../../middleware/authMiddleware");
 
 const { apiServerError, apiClientError } = require('../../../helpers/apiErrorHandler');
 
+const { removeUndefinedKeys } = require('../../../helpers/objectValidators');
+
 const getPostsValidation = require('../../../validations/v1/posts/get_posts_vl'); 
 const baseFilterValidation = require('../../../validations/v1/vl_base_filter_query'); 
 router.get('/', validateToken, checkSchema({...baseFilterValidation, ...getPostsValidation}), async (req, res) => {
@@ -33,9 +35,10 @@ router.get('/', validateToken, checkSchema({...baseFilterValidation, ...getPosts
         order: req.query.order,
         limit: req.query.limit,
         search: req.query.search,
+        user_id: req.query.user === "current" ? req.user.user_id : req.query.user_id,
     };
 
-    removeUndefinedKeys(data_query)
+    removeUndefinedKeys(data_query);
 
     let data = [];
 
@@ -57,7 +60,7 @@ router.get('/', validateToken, checkSchema({...baseFilterValidation, ...getPosts
             posts
             ${sqlFilter}
         `);
-        
+
         for (let i = 0; i < rows_1.length; i++) {
             const row = rows_1[i];
 
@@ -70,7 +73,16 @@ router.get('/', validateToken, checkSchema({...baseFilterValidation, ...getPosts
                 type = "post" and
                 deleted_at is null;`, [row.id, req.user.user_id]);
 
-            data.push({isLiked: like.length === 0 ? false : true, ...row});
+
+            const [original_post] = await db.execute(`select * from posts where id = ?`, [row.original_post_id]);
+
+
+            data.push(
+                {
+                    isLiked: like.length === 0 ? false : true, 
+                    ...row,
+                    original_post: original_post.length < 1 ? null : original_post[0]
+                });
         }
     } catch (error) {
         return apiServerError(req, res);
@@ -123,7 +135,15 @@ router.get('/:id', validateToken, param('id').isInt(), async (req, res) => {
             type = "post" and
             deleted_at is null;`, [rows_1[0].id, req.user.user_id]);
         
-        data = {isLiked: like.length === 0 ? false : true, ...rows_1[0]};
+            const [original_post] = await db.execute(`select * from posts where id = ?`, [rows_1[0].original_post_id]);
+
+
+            data =
+            {
+                isLiked: like.length === 0 ? false : true, 
+                ...rows_1[0],
+                original_post: original_post.length < 1 ? null : original_post[0]
+            };
 
     } catch (error) {
         return apiServerError(req, res);
@@ -155,18 +175,43 @@ router.post('/', validateToken, checkSchema(postPostsValidation), async (req, re
 
     const { title, content } = req.body;
 
+    const { share_post_id } = req.query;
+
+    let post = " ";
+    if(!!share_post_id){
+        try {
+            const [post_query] = await db.execute(`select id, user_id from posts where id = ? and deleted_at is null;`, [share_post_id]);
+            post = post_query[0];
+        } catch (error) {
+            return apiServerError(req, res);
+        }
+    }
+
+    if(!post?.id){
+        return apiClientError(req, res, null, "Resource not found", 404);
+    }
+
+    if(post.user_id == req.user.user_id){
+        return apiClientError(req, res, null, "Can not share post of the same user.", 404);
+    }
+
+
     let data = [];
 
     let sql = `
     insert into 
-    posts(user_id, title, content)
-    values(?, ?, ?);
+    posts(user_id, title, content, original_post_id)
+    values(?, ?, ?, ?);
     `;
 
     try {
-        const [row] = await db.execute(sql, [req.user.user_id, title, content]);
+        const [row] = await db.execute(sql, [req.user.user_id, title, content, !share_post_id ? null : share_post_id]);
         const [last_insert] =  await db.execute(`select * from posts where id = ? and deleted_at is null`, [row.insertId]);
         data = last_insert[0];
+
+        if(!!share_post_id){
+            await db.execute(`update posts set share = share + 1 where id = ?`, [share_post_id]);
+        }
     } catch (error) {
         return apiServerError(req, res);
     } 
@@ -199,7 +244,7 @@ router.put('/:id', validateToken, param('id').isInt(), checkSchema(putPostsValid
 
     let user_id;
     try {
-        let [user_id_query] = await db.execute(`select user_id from posts where id = ?;`, [id]);
+        let [user_id_query] = await db.execute(`select user_id from posts where id = ? and deleted_at is null;`, [id]);
         user_id = user_id_query[0]?.user_id;
     } catch (error) {
         return apiServerError(req, res);
@@ -247,22 +292,13 @@ router.put('/:id', validateToken, param('id').isInt(), checkSchema(putPostsValid
         }
     );
 });
-
-function removeUndefinedKeys(obj) {
-    for (const key in obj) {
-      if (obj[key] === undefined || obj[key] === null) {
-        delete obj[key];
-      }
-    }
-    return obj;
-}
  
 router.delete('/:id', validateToken, param('id').isInt(), async (req, res) => {
     const id = req.params.id;
 
     let user_id;
     try {
-        let [user_id_query] = await db.execute(`select user_id from posts where id = ?;`, [id]);
+        let [user_id_query] = await db.execute(`select user_id from posts where id = ? and deleted_at is null;`, [id]);
         user_id = user_id_query[0]?.user_id;
     } catch (error) {
         return apiServerError(req, res);
@@ -388,7 +424,7 @@ router.post('/:id/comments', validateToken, param('id').isInt(), checkSchema(pos
 
     let user_id;
     try {
-        let [user_id_query] = await db.execute(`select user_id from posts where id = ?;`, [id]);
+        let [user_id_query] = await db.execute(`select user_id from posts where id = ? and deleted_at is null;`, [id]);
         user_id = user_id_query[0]?.user_id;
     } catch (error) {
         return apiServerError(req, res);
@@ -495,7 +531,7 @@ router.post('/:id/likes', validateToken, param('id').isInt(), async (req, res) =
 
     let user_id;
     try {
-        let [user_id_query] = await db.execute(`select user_id from posts where id = ?;`, [id]);
+        let [user_id_query] = await db.execute(`select user_id from posts where id = ? and deleted_at is null;`, [id]);
         user_id = user_id_query[0]?.user_id;
     } catch (error) {
         return apiServerError(req, res);
@@ -546,7 +582,7 @@ router.delete('/:id/likes', validateToken, param('id').isInt(), async (req, res)
 
     let user_id;
     try {
-        let [user_id_query] = await db.execute(`select user_id from posts where id = ?;`, [id]);
+        let [user_id_query] = await db.execute(`select user_id from posts where id = ? and deleted_at is null;`, [id]);
         user_id = user_id_query[0]?.user_id;
     } catch (error) {
         return apiServerError(req, res);
@@ -607,7 +643,7 @@ router.post('/comments/:id/likes', validateToken, param('id').isInt(), async (re
 
     let user_id;
     try {
-        let [user_id_query] = await db.execute(`select user_id from comments where id = ?;`, [id]);
+        let [user_id_query] = await db.execute(`select user_id from comments where id = ? and deleted_at is null;`, [id]);
         user_id = user_id_query[0]?.user_id;
     } catch (error) {
         return apiServerError(req, res);
@@ -658,7 +694,7 @@ router.delete('/comments/:id/likes', validateToken, param('id').isInt(), async (
 
     let user_id;
     try {
-        let [user_id_query] = await db.execute(`select user_id from comments where id = ?;`, [id]);
+        let [user_id_query] = await db.execute(`select user_id from comments where id = ? and deleted_at is null;`, [id]);
         user_id = user_id_query[0]?.user_id;
     } catch (error) {
         return apiServerError(req, res);

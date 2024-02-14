@@ -12,4 +12,16 @@ module.exports = {
             options:{ min: 6, max: 255 }
         },
     },
+    user_id: {
+        in: ["query"],
+        optional: {
+            options: {
+             nullable: true,
+            }
+        },
+        custom: {
+            options: (field) => field == "current" ? true : Number.isInteger(parseInt(field)) && field > 0,
+            errorMessage: "Field 'user_id' must be an interger or 'current'.",
+        },
+    },
 }

@@ -12,5 +12,16 @@ module.exports = {
             errorMessage: "The field 'content' must be between 30 and 50000 characters.",
             options:{ min: 30, max: 50000 }
         },
-    }
+    },
+    share_post_id: {
+        in: ["query"],
+        optional: {
+            options: {
+                nullable: true,
+            }
+        },
+        isInt: {
+            errorMessage: "The field 'share_post_id' must be an interger.",
+        },
+    },
 }
